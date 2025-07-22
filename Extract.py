@@ -5,7 +5,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 import os
-from sqlalchemy import create_engine, select, MetaData
+from sqlalchemy import create_engine, select, distinct, MetaData
 
 
 def extract(articles: list) -> dict:
@@ -86,6 +86,42 @@ def get_articles(chat_id: str) -> list:
 
             articles_list = [row[0] for row in result.fetchall()]
         return articles_list
+    except Exception as e:
+        print(f"Get from DB error: {e}")
+        raise
+
+
+def get_chat_ids() -> list:
+    try:
+        load_dotenv()
+
+        print(f"DB_HOST={os.getenv('DB_HOST')}")
+        print(f"DB_USER={os.getenv('DB_USER')}")
+
+        user = os.environ["DB_USER"]
+        password = os.environ["DB_PASSWORD"]
+        host = os.environ["DB_HOST"]
+        port = os.environ["DB_PORT"]
+        db = os.environ["DB_NAME"]
+
+        engine = create_engine(
+            f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}"
+        )
+
+        ARTICLES_TABLE = "articles"
+
+        metadata = MetaData()
+        metadata.reflect(bind=engine)
+        articles_table = metadata.tables[ARTICLES_TABLE]
+
+        with engine.connect() as conn:
+            stmt = select(articles_table.c.chatId).distinct(articles_table.c.chatId)
+
+            conn.execute(stmt)
+            result = conn.execute(stmt)
+
+            chatids_list = [row[0] for row in result.fetchall()]
+        return chatids_list
     except Exception as e:
         print(f"Get from DB error: {e}")
         raise
