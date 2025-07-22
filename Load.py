@@ -83,9 +83,17 @@ def load_client_data(chat_id: str, username):
         raise
 
 
-def load_articles_data(chat_id: str, articles: list):
+def load_articles_data(chat_id: str, articles: list, articles_old: list):
     try:
         load_dotenv()
+
+        # Удаляю дубли артикулов
+        articles = list(set(articles))
+
+        # Лист артикулов на удаление
+        articles_delete = [art for art in articles_old if art not in articles]
+
+        new_articles = [art for art in articles if art not in articles_old]
 
         print(f"DB_HOST={os.getenv('DB_HOST')}")
         print(f"DB_USER={os.getenv('DB_USER')}")
@@ -99,7 +107,7 @@ def load_articles_data(chat_id: str, articles: list):
         df = pd.DataFrame(
             [
                 {"chatId": chat_id, "article": article, "dateUpdate": datetime.now()}
-                for article in articles
+                for article in new_articles
             ]
         )
 
@@ -117,11 +125,12 @@ def load_articles_data(chat_id: str, articles: list):
             # Удаление дубля
             stmt = delete(articles_table).where(
                 (articles_table.c.chatId == chat_id)
-                & (articles_table.c.article.in_(articles))
+                & (articles_table.c.article.in_(articles_delete))
             )
 
             conn.execute(stmt)
             conn.commit()
+
         print(df)
         df.to_sql(name=ARTICLES_TABLE, con=engine, if_exists="append", index=False)
 

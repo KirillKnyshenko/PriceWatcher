@@ -14,13 +14,13 @@ from Load import load_client_data, load_articles_data
 from Extract import get_articles
 
 WAITING_FOR_GENERATE_LIST = 1
-WAITING_FOR_ADD_LIST = 2
 
 load_dotenv()
 token = os.getenv("BOT_API_TOKEN")
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    context.user_data.pop("state", None)
     await update.message.reply_text(
         "Добрый день! В данном Боте Вы можете отслеживать цену на интересующие Вас товары WB."
     )
@@ -31,12 +31,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    context.user_data.pop("state", None)
     await update.message.reply_text("В разработке...")
 
 
 async def show_option_buttons(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
+    context.user_data.pop("state", None)
     keyboard = [
         [
             InlineKeyboardButton(
@@ -48,7 +50,6 @@ async def show_option_buttons(
                 "Увидеть текущий список артикулов", callback_data="button_2"
             )
         ],
-        [InlineKeyboardButton("Добавить артикулы к списку", callback_data="button_3")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -61,41 +62,42 @@ async def show_option_buttons(
 
 
 async def handle_generate_list(update, context):
+    context.user_data["state"] = "awaiting_articles"
+    chat_id = update.callback_query.message.chat_id
+    articles_list = get_articles(chat_id)
+
     await update.callback_query.answer()
     await update.callback_query.edit_message_text(
-        "Напишите список интересующих Вас артикулов в формате 1111111,22222222,333333333 и т. д. \n"
-        "Не более 10 артикулов!"
+        "Добавление артикулов\n\n"
+        "Вам необходимо далее ввести список артикулов в формате 1111111,22222222,333333333\n"
+        "Количество артикулов не более 10"
+        "\n\n‼️ВНИМАНИЕ‼️\n\n"
+        f"Текущий список Ваших артикулов: \n{', '.join(articles_list)}\n\n"
+        "Если в указаном списке ниже не будет какого-то из вышеперечисленных артикулов (т.е. тех что Вы уже отислеживаете), то они будут безвозратно удалены.\n"
+        "В случае если Вы передумали и хотите вернутся назад, то введите (или нажмите справа) команду /start"
     )
     return WAITING_FOR_GENERATE_LIST
 
 
 async def handle_show_list(update, context):
+    context.user_data.pop("state", None)
     chat_id = update.callback_query.message.chat_id
     articles_list = get_articles(chat_id)
 
     await update.callback_query.answer()
     await update.callback_query.edit_message_text(
-        f"Текущий список Ваших артикулов: \n{', '.join(articles_list)}"
+        f"Текущий список Ваших артикулов ({len(articles_list)} шт.): \n{', '.join(articles_list)}"
     )
     await show_option_buttons(update, context)
 
 
-async def handle_add_articles(update, context):
-    chat_id = update.callback_query.message.chat_id
-    articles_list = get_articles(chat_id)
-
-    await update.callback_query.answer()
-    await update.callback_query.edit_message_text(
-        f"Вы хотите добавить новые артикулы. \n"
-        + "ВНИМАНИЕ. Кол-во артикулов не должно превышать 10! \n\n"
-        + f"Текущий список Ваших артикулов: \n{', '.join(articles_list)}\n\n"
-        + "Можете скопировать список артикулов, заменив ненужные или вставив дополнительные в том же формате. "
-        + "Вся информация об артикулах которые вы не укажите будет безвозратно удалена!"
-    )
-    return WAITING_FOR_ADD_LIST
-
-
 async def receive_articles(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if context.user_data.get("state") != "awaiting_articles":
+        await update.message.reply_text(
+            "Сначала нажмите кнопку 'Сгенерировать новый список артикулов'."
+        )
+        return ConversationHandler.END
+
     text = update.message.text
     chat_id = update.message.chat_id
 
@@ -107,30 +109,17 @@ async def receive_articles(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
-    load_articles_data(str(chat_id), articles)
+    old_articles_list = get_articles(chat_id)
+    load_articles_data(str(chat_id), articles, old_articles_list)
+    articles_list = get_articles(chat_id)
 
     await update.message.reply_text(
-        f"✅ Новый список из {len(articles)} артикулов сохранён:\n{', '.join(articles)}"
+        f"✅ Новый список из {len(articles_list)} артикулов сохранён:\n{', '.join(articles_list)}"
     )
+
+    context.user_data.pop("state", None)
     await show_option_buttons(update, context)
-
-
-def parse_articles(text):
-    return [a.strip() for a in text.replace(",", " ").split() if a.strip().isdigit()]
-
-
-async def receive_add_list(update, context):
-    text = update.message.text
-    chat_id = update.message.chat_id
-
-    articles = parse_articles(text)
-
-    load_articles_data(str(chat_id), articles)
-
-    await update.message.reply_text(
-        f"✅ Добавлено {len(articles)} артикулов к отслеживанию:\n{', '.join(articles)}"
-    )
-    await show_option_buttons(update, context)
+    return ConversationHandler.END
 
 
 def parse_articles(text):
@@ -140,15 +129,11 @@ def parse_articles(text):
 conv_handler = ConversationHandler(
     entry_points=[
         CallbackQueryHandler(handle_generate_list, pattern="^button_1$"),
-        CallbackQueryHandler(handle_add_articles, pattern="^button_3$"),
     ],
     states={
         WAITING_FOR_GENERATE_LIST: [
             MessageHandler(filters.TEXT & ~filters.COMMAND, receive_articles)
-        ],
-        WAITING_FOR_ADD_LIST: [
-            MessageHandler(filters.TEXT & ~filters.COMMAND, receive_add_list)
-        ],
+        ]
     },
     fallbacks=[],
     per_chat=True,
