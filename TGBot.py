@@ -1,6 +1,6 @@
 from dotenv import load_dotenv
 import os
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     CommandHandler,
     CallbackQueryHandler,
@@ -11,7 +11,9 @@ from telegram.ext import (
     filters,
 )
 from Load import load_client_data, load_articles_data
-from Extract import get_articles
+from Extract import get_articles, get_prices_db
+import asyncio
+from datetime import datetime
 
 WAITING_FOR_GENERATE_LIST = 1
 
@@ -126,6 +128,29 @@ def parse_articles(text):
     return [a.strip() for a in text.replace(",", " ").split() if a.strip().isdigit()]
 
 
+async def show_prices(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.message.chat_id
+    price_list = get_prices_db(chat_id)
+    print(price_list, type(price_list))
+
+    text_lines = [f"Артикул: {row[0]}, Цена: {row[1]}" for row in price_list]
+    final_text = "\n".join(text_lines)
+
+    await context.bot.send_message(chat_id=chat_id, text=final_text)
+
+
+def show_prices(chat_id_arg: int):
+    bot = Bot(token=token)
+    price_list = get_prices_db(chat_id_arg, datetime.strptime("2025-07-22", "%Y-%m-%d"))
+    text_lines = [f"Артикул: {row[0]}, Цена: {row[1]}" for row in price_list]
+    final_text = "\n".join(text_lines)
+
+    async def send():
+        await bot.send_message(chat_id=chat_id_arg, text=final_text)
+
+    asyncio.run(send())
+
+
 conv_handler = ConversationHandler(
     entry_points=[
         CallbackQueryHandler(handle_generate_list, pattern="^button_1$"),
@@ -144,6 +169,7 @@ def main():
     application = Application.builder().token(token).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("show", show_prices))
 
     application.add_handler(conv_handler)
 

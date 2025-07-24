@@ -2,10 +2,11 @@ from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 import time
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 import os
-from sqlalchemy import create_engine, select, distinct, MetaData
+from sqlalchemy import create_engine, select, func, MetaData
 
 
 def extract(articles: list) -> dict:
@@ -24,7 +25,7 @@ def fetch_price(article):
     driver = webdriver.Chrome(options=options)
     driver.get(url)
 
-    time.sleep(60)
+    time.sleep(10)
 
     html_content = driver.page_source
     driver.quit()
@@ -86,6 +87,93 @@ def get_articles(chat_id: str) -> list:
 
             articles_list = [row[0] for row in result.fetchall()]
         return articles_list
+    except Exception as e:
+        print(f"Get from DB error: {e}")
+        raise
+
+
+def get_prices_db(chat_id: str) -> list:
+    try:
+        load_dotenv()
+
+        print(f"DB_HOST={os.getenv('DB_HOST')}")
+        print(f"DB_USER={os.getenv('DB_USER')}")
+
+        user = os.environ["DB_USER"]
+        password = os.environ["DB_PASSWORD"]
+        host = os.environ["DB_HOST"]
+        port = os.environ["DB_PORT"]
+        db = os.environ["DB_NAME"]
+
+        engine = create_engine(
+            f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}"
+        )
+
+        ARTICLES_TABLE = "articles"
+        PRICE_TABLE = "wb_price_history"
+
+        metadata = MetaData()
+        metadata.reflect(bind=engine)
+        articles_table = metadata.tables[ARTICLES_TABLE]
+        price_table = metadata.tables[PRICE_TABLE]
+        with engine.connect() as conn:
+            stmt = select(articles_table).where((articles_table.c.chatId == chat_id))
+
+            result = conn.execute(stmt)
+
+            articles_list = [row[0] for row in result.fetchall()]
+
+            stmt = select(price_table.c.article, price_table.c.price).where(
+                (price_table.c.article.in_(articles_list))
+            )
+
+            result = conn.execute(stmt)
+            price_list = [row for row in result.fetchall()]
+        return price_list
+    except Exception as e:
+        print(f"Get from DB error: {e}")
+        raise
+
+
+def get_prices_db(chat_id: str, date: datetime) -> list:
+    try:
+        load_dotenv()
+
+        print(f"DB_HOST={os.getenv('DB_HOST')}")
+        print(f"DB_USER={os.getenv('DB_USER')}")
+
+        user = os.environ["DB_USER"]
+        password = os.environ["DB_PASSWORD"]
+        host = os.environ["DB_HOST"]
+        port = os.environ["DB_PORT"]
+        db = os.environ["DB_NAME"]
+
+        engine = create_engine(
+            f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}"
+        )
+
+        ARTICLES_TABLE = "articles"
+        PRICE_TABLE = "wb_price_history"
+
+        metadata = MetaData()
+        metadata.reflect(bind=engine)
+        articles_table = metadata.tables[ARTICLES_TABLE]
+        price_table = metadata.tables[PRICE_TABLE]
+        with engine.connect() as conn:
+            stmt = select(articles_table).where((articles_table.c.chatId == chat_id))
+
+            result = conn.execute(stmt)
+
+            articles_list = [row[0] for row in result.fetchall()]
+
+            stmt = select(price_table.c.article, price_table.c.price).where(
+                (price_table.c.article.in_(articles_list)),
+                (func.date(price_table.c.dateUpdate) == date),
+            )
+
+            result = conn.execute(stmt)
+            price_list = [row for row in result.fetchall()]
+        return price_list
     except Exception as e:
         print(f"Get from DB error: {e}")
         raise
