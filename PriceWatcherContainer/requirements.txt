@@ -1,0 +1,6 @@
+xmltodict
+pandas
+dotenv
+selenium
+python-telegram-bot>=20.0
+playwright
