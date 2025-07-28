@@ -11,7 +11,6 @@ def transform(prices_dict: dict) -> str:
         df = pd.DataFrame(prices_dict)
 
         df["dateUpdate"] = datetime.now()
-        df["operationDate"] = datetime.now()
 
         temp_dir = tempfile.mkdtemp()
         temp_path = os.path.join(temp_dir, "prices.csv")

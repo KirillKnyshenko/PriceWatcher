@@ -3,6 +3,9 @@ from sqlalchemy import create_engine, delete, MetaData
 from dotenv import load_dotenv
 import os
 from datetime import datetime, timedelta
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def load(csv_path: str):
@@ -10,9 +13,6 @@ def load(csv_path: str):
         load_dotenv()
 
         df = pd.read_csv(csv_path)
-
-        print(f"DB_HOST={os.getenv('DB_HOST')}")
-        print(f"DB_USER={os.getenv('DB_USER')}")
 
         user = os.environ["DB_USER"]
         password = os.environ["DB_PASSWORD"]
@@ -28,28 +28,18 @@ def load(csv_path: str):
 
         metadata = MetaData()
         metadata.reflect(bind=engine)
-        price_table = metadata.tables[PRICE_TABLE]
 
-        with engine.connect() as conn:
-            # Удаление дубля для аирфлоу
-            stmt = delete(price_table).where(
-                price_table.c.operationDate == "25-06-2025"
-            )
-            conn.execute(stmt)
         df.to_sql(name=PRICE_TABLE, con=engine, if_exists="append", index=False)
 
-        print("Successfully loaded to DB!")
+        logger.info("Successfully loaded to DB!")
     except Exception as e:
-        print(f"Load error: {e}")
+        logger.error(f"Load error: {e}")
         raise
 
 
 def load_client_data(chat_id: str, username):
     try:
         load_dotenv()
-
-        print(f"DB_HOST={os.getenv('DB_HOST')}")
-        print(f"DB_USER={os.getenv('DB_USER')}")
 
         user = os.environ["DB_USER"]
         password = os.environ["DB_PASSWORD"]
@@ -77,9 +67,9 @@ def load_client_data(chat_id: str, username):
 
         df.to_sql(name=CLIENTS_TABLE, con=engine, if_exists="append", index=False)
 
-        print("Successfully loaded to DB!")
+        logger.info("Successfully loaded to DB!")
     except Exception as e:
-        print(f"Load error: {e}")
+        logger.error(f"Load error: {e}")
         raise
 
 
@@ -94,9 +84,6 @@ def load_articles_data(chat_id: str, articles: list, articles_old: list):
         articles_delete = [art for art in articles_old if art not in articles]
 
         new_articles = [art for art in articles if art not in articles_old]
-
-        print(f"DB_HOST={os.getenv('DB_HOST')}")
-        print(f"DB_USER={os.getenv('DB_USER')}")
 
         user = os.environ["DB_USER"]
         password = os.environ["DB_PASSWORD"]
@@ -131,10 +118,9 @@ def load_articles_data(chat_id: str, articles: list, articles_old: list):
             conn.execute(stmt)
             conn.commit()
 
-        print(df)
         df.to_sql(name=ARTICLES_TABLE, con=engine, if_exists="append", index=False)
 
-        print("Successfully loaded to DB!")
+        logger.info("Successfully loaded to DB!")
     except Exception as e:
-        print(f"Load error: {e}")
+        logger.error(f"Load error: {e}")
         raise

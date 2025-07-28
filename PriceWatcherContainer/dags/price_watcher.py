@@ -9,21 +9,21 @@ import logging
 from price_watcher.Extract import extract, get_chat_ids, get_articles
 from price_watcher.Transform import transform
 from price_watcher.Load import load
-from price_watcher.TGBot import show_prices
+from price_watcher.TGBot import show_changed_prices
 
 logger = logging.getLogger(__name__)
 
 with DAG(
-    "rate_exchange",
+    "price_sending",
     start_date=datetime(2025, 6, 27),
     schedule=timedelta(minutes=10),
-    description="My pet project (first with airflow) which get data by API from Central Bank and load to DB.",
+    description="My pet project which get prices data from WB and send to Telegram.",
     tags=["PetProject", "ETL"],
     catchup=False,
 ) as dag:
 
     @task
-    def extract_data(execution_date=None):
+    def extract_data():
         try:
             chatIds = get_chat_ids()
             articles = []
@@ -37,6 +37,7 @@ with DAG(
             articles = list(set(articles))
 
             prices = extract(articles)
+            logger.info("Extract succesfully!")
 
             return {
                 "prices": prices,
@@ -55,7 +56,7 @@ with DAG(
 
             prices = extract_result["prices"]
             csv_path = transform(prices)
-
+            logger.info("Transform succesfully!")
             return csv_path
         except Exception as e:
             logger.error(f"Transform error: {e}")
@@ -82,9 +83,10 @@ with DAG(
 
             for chatId in chatIds:
                 try:
-                    show_prices(chatId)
+                    show_changed_prices(chatId)
+                    logger.info(f"Bot successfully!")
                 except Exception as e:
-                    print(f"Bot error: {e}")
+                    logger.error(f"Bot error: {e}")
         except Exception as e:
             logger.error(f"Load error: {e}")
             raise

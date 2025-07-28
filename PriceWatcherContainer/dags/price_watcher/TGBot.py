@@ -137,9 +137,9 @@ def parse_articles(text):
     return [a.strip() for a in text.replace(",", " ").split() if a.strip().isdigit()]
 
 
-async def show_prices(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def show_changed_prices(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.message.chat_id
-    price_list = get_prices_db(chat_id)
+    price_list = get_prices_db(chat_id, True)
     print(price_list, type(price_list))
 
     text_lines = [f"Артикул: {row[0]}, Цена: {row[1]}" for row in price_list]
@@ -148,19 +148,31 @@ async def show_prices(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=chat_id, text=final_text)
 
 
-def show_prices(chat_id_arg: int):
+def show_changed_prices(chat_id_arg: int):
     bot = Bot(token=token)
-    print("chat_id_arg " + str(chat_id_arg))
-    print("token " + str(token))
-    price_list = get_prices_db(chat_id_arg, datetime.strptime("2025-07-27", "%Y-%m-%d"))
-    print("price_list " + str(price_list))
-    text_lines = [f"Артикул: {row[0]}, Цена: {row[1]}" for row in price_list]
+
+    price_list = get_prices_db(chat_id_arg, True)
+    old_price_list = get_prices_db(chat_id_arg, False)
+
+    # Выводим только изменившиеся цены
+    text_lines = []
+    for row in price_list:
+        for old_row in old_price_list:
+            if (old_row[0] == row[0]) & (old_row[1] != row[1]):
+                text_lines.append(
+                    f"Артикул: {row[0]}, Цена: {row[1]}, Предыдущая цена: {old_row[1]}"
+                )
+
     final_text = "\n".join(text_lines)
 
-    async def send():
-        await bot.send_message(chat_id=chat_id_arg, text=final_text)
+    if final_text:
 
-    asyncio.run(send())
+        async def send():
+            await bot.send_message(
+                chat_id=chat_id_arg, text="Изменения в цене:\n\n" + final_text
+            )
+
+        asyncio.run(send())
 
 
 conv_handler = ConversationHandler(
@@ -181,7 +193,7 @@ def main():
     application = Application.builder().token(token).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("show", show_prices))
+    application.add_handler(CommandHandler("show", show_changed_prices))
 
     application.add_handler(conv_handler)
 

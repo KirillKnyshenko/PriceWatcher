@@ -68,10 +68,7 @@ def fetch_price(article):
 
 def get_articles(chat_id: str) -> list:
     try:
-        load_dotenv("../")
-
-        print(f"DB_HOST={os.getenv('DB_HOST')}")
-        print(f"DB_USER={os.getenv('DB_USER')}")
+        load_dotenv()
 
         user = os.environ["DB_USER"]
         password = os.environ["DB_PASSWORD"]
@@ -105,9 +102,6 @@ def get_articles(chat_id: str) -> list:
 def get_prices_db(chat_id: str) -> list:
     try:
         load_dotenv()
-
-        print(f"DB_HOST={os.getenv('DB_HOST')}")
-        print(f"DB_USER={os.getenv('DB_USER')}")
 
         user = os.environ["DB_USER"]
         password = os.environ["DB_PASSWORD"]
@@ -145,12 +139,9 @@ def get_prices_db(chat_id: str) -> list:
         raise
 
 
-def get_prices_db(chat_id: str, date: datetime) -> list:
+def get_prices_db(chat_id: str, isMax: bool = True) -> list:
     try:
         load_dotenv()
-
-        print(f"DB_HOST={os.getenv('DB_HOST')}")
-        print(f"DB_USER={os.getenv('DB_USER')}")
 
         user = os.environ["DB_USER"]
         password = os.environ["DB_PASSWORD"]
@@ -176,10 +167,34 @@ def get_prices_db(chat_id: str, date: datetime) -> list:
 
             articles_list = [row[0] for row in result.fetchall()]
 
-            stmt = select(price_table.c.article, price_table.c.price).where(
-                (price_table.c.article.in_(articles_list)),
-                (func.date(price_table.c.dateUpdate) == date),
-            )
+            if isMax:
+                subquery = (
+                    select(func.max(price_table.c.dateUpdate)).where(
+                        price_table.c.article.in_(articles_list)
+                    )
+                ).scalar_subquery()
+
+                stmt = select(price_table.c.article, price_table.c.price).where(
+                    price_table.c.article.in_(articles_list),
+                    price_table.c.dateUpdate == subquery,
+                )
+            else:
+                subquery = (
+                    select(price_table.c.dateUpdate.label("dateUpdate"))
+                    .where(price_table.c.article.in_(articles_list))
+                    .distinct()
+                    .order_by(price_table.c.dateUpdate.desc())
+                    .limit(2)
+                ).subquery()
+
+                second_last_date = conn.execute(
+                    select(subquery.c.dateUpdate).offset(1)
+                ).scalar()
+
+                stmt = select(price_table.c.article, price_table.c.price).where(
+                    price_table.c.article.in_(articles_list),
+                    price_table.c.dateUpdate == second_last_date,
+                )
 
             result = conn.execute(stmt)
             price_list = [row for row in result.fetchall()]
@@ -192,9 +207,6 @@ def get_prices_db(chat_id: str, date: datetime) -> list:
 def get_chat_ids() -> list:
     try:
         load_dotenv()
-
-        print(f"DB_HOST={os.getenv('DB_HOST')}")
-        print(f"DB_USER={os.getenv('DB_USER')}")
 
         user = os.environ["DB_USER"]
         password = os.environ["DB_PASSWORD"]
