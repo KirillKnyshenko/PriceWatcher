@@ -14,15 +14,10 @@ import matplotlib.pyplot as plt
 from io import BytesIO
 import numpy as np
 
-try:
-    if __name__ == "__main__":
-        from Load import load_client_data, load_articles_data
-        from Extract import get_articles, get_prices_db
-    else:
-        from price_watcher.Load import load_client_data, load_articles_data
-        from price_watcher.Extract import get_articles, get_prices_db
-except ImportError:
-    print("TGBot import mistake")
+
+from Load import load_client_data, load_articles_data
+from Extract import get_articles, get_prices_db
+
 
 import asyncio
 from datetime import datetime
@@ -105,7 +100,7 @@ async def handle_show_list(update, context):
 
     buf = generate_chart(chat_id)
     await context.bot.send_photo(
-        chat_id=update.message.chat_id, photo=InputFile(buf, filename="chart.png")
+        update.effective_chat.id, photo=InputFile(buf, filename="chart.png")
     )
     await show_option_buttons(update, context)
 
@@ -118,7 +113,6 @@ def generate_chart(chat_id_arg: str):
 
     fig, ax = plt.subplots()
     ax.plot(x, y)
-    plt.show()
 
     # Сохраняем диаграмму в байтовый объект
     buf = BytesIO()
