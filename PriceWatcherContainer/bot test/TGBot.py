@@ -16,7 +16,7 @@ import numpy as np
 
 
 from Load import load_client_data, load_articles_data
-from Extract import get_articles, get_prices_db
+from Extract import get_articles, get_prices_db, get_price_history_db
 
 
 import asyncio
@@ -41,7 +41,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     context.user_data.pop("state", None)
-    await update.message.reply_text("В разработке...")
+    await update.effective_chat.send_message("В разработке...")
 
 
 async def show_option_buttons(
@@ -62,12 +62,9 @@ async def show_option_buttons(
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    if update.message:
-        await update.message.reply_text("Выберите опцию:", reply_markup=reply_markup)
-    elif update.callback_query:
-        await update.callback_query.message.reply_text(
-            "Выберите опцию:", reply_markup=reply_markup
-        )
+    await update.effective_chat.send_message(
+        "Выберите опцию:", reply_markup=reply_markup
+    )
 
 
 async def handle_generate_list(update, context):
@@ -75,8 +72,7 @@ async def handle_generate_list(update, context):
     chat_id = update.callback_query.message.chat_id
     articles_list = get_articles(chat_id)
 
-    await update.callback_query.answer()
-    await update.callback_query.edit_message_text(
+    await update.effective_chat.send_message(
         "Добавление артикулов\n\n"
         "Вам необходимо далее ввести список артикулов в формате 1111111,22222222,333333333\n"
         "Количество артикулов не более 10"
@@ -93,33 +89,55 @@ async def handle_show_list(update, context):
     chat_id = update.callback_query.message.chat_id
     articles_list = get_articles(chat_id)
 
-    await update.callback_query.answer()
-    await update.callback_query.edit_message_text(
+    await update.effective_chat.send_message(
         f"Текущий список Ваших артикулов ({len(articles_list)} шт.): \n{', '.join(articles_list)}"
     )
 
-    buf = generate_chart(chat_id)
-    await context.bot.send_photo(
-        update.effective_chat.id, photo=InputFile(buf, filename="chart.png")
-    )
+    buffers = generate_graph(chat_id)
+    for buf in buffers.values():
+        await context.bot.send_photo(
+            update.effective_chat.id, photo=InputFile(buf, filename="chart.png")
+        )
     await show_option_buttons(update, context)
 
 
-def generate_chart(chat_id_arg: str):
+import numpy as np
+
+
+def generate_graph(chat_id_arg: str):
     chat_id = chat_id_arg
 
-    x = np.linspace(0, 2 * np.pi, 200)
-    y = np.sin(x)
+    price_history = get_price_history_db(chat_id)
 
-    fig, ax = plt.subplots()
-    ax.plot(x, y)
+    articles = sorted(set(article["article"] for article in price_history))
 
-    # Сохраняем диаграмму в байтовый объект
-    buf = BytesIO()
-    plt.savefig(buf, format="png")
-    buf.seek(0)
+    buffers = {}
 
-    return buf
+    for article in articles:
+        times = [
+            price["date"] for price in price_history if price["article"] == article
+        ]
+        prices = [
+            price["price"] for price in price_history if price["article"] == article
+        ]
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+        ax.plot(times, prices)
+        ax.set_title(f"Артикул: {article}")
+        ax.set_xlabel("Время")
+        ax.set_ylabel("Цена")
+
+        plt.tight_layout()
+
+        # Сохраняем диаграмму в байтовый объект
+        buf = BytesIO()
+        plt.savefig(buf, format="png")
+        plt.close(fig)
+        buf.seek(0)
+
+        buffers[article] = buf
+
+    return buffers
 
 
 async def receive_articles(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -144,7 +162,7 @@ async def receive_articles(update: Update, context: ContextTypes.DEFAULT_TYPE):
     load_articles_data(str(chat_id), articles, old_articles_list)
     articles_list = get_articles(chat_id)
 
-    await update.message.reply_text(
+    await update.effective_chat.send_message(
         f"✅ Новый список из {len(articles_list)} артикулов сохранён:\n{', '.join(articles_list)}"
     )
 
@@ -160,7 +178,6 @@ def parse_articles(text):
 async def show_changed_prices(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.message.chat_id
     price_list = get_prices_db(chat_id, True)
-    print(price_list, type(price_list))
 
     text_lines = [f"Артикул: {row[0]}, Цена: {row[1]}" for row in price_list]
     final_text = "\n".join(text_lines)
