@@ -114,12 +114,12 @@ def generate_graph(chat_id_arg: str):
     buffers = {}
 
     for article in articles:
-        times = [
-            price["date"] for price in price_history if price["article"] == article
-        ]
-        prices = [
-            price["price"] for price in price_history if price["article"] == article
-        ]
+        data = [price for price in price_history if price["article"] == article]
+
+        data = sorted(data, key=lambda x: x["date"])
+
+        times = [price["date"] for price in data]
+        prices = [price["price"] for price in data]
 
         fig, ax = plt.subplots(figsize=(10, 5))
         ax.plot(times, prices)

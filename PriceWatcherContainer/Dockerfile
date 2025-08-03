@@ -10,3 +10,6 @@ RUN apt-get update && apt-get install -y wget gnupg libnss3 libatk1.0-0 libatk-b
 
 USER airflow
 RUN playwright install
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt

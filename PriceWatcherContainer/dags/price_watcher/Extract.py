@@ -1,8 +1,5 @@
 from bs4 import BeautifulSoup
 
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-
 from playwright.sync_api import sync_playwright
 
 import time
@@ -202,6 +199,53 @@ def get_prices_db(chat_id: str, isMax: bool = True) -> list:
     except Exception as e:
         print(f"Get from DB error: {e}")
         raise
+
+
+def get_price_history_db(chat_id: str) -> list:
+    try:
+        load_dotenv()
+
+        user = os.environ["DB_USER"]
+        password = os.environ["DB_PASSWORD"]
+        host = os.environ["DB_HOST"]
+        port = os.environ["DB_PORT"]
+        db = os.environ["DB_NAME"]
+
+        engine = create_engine(
+            f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}"
+        )
+
+        ARTICLES_TABLE = "articles"
+        PRICE_TABLE = "wb_price_history"
+
+        metadata = MetaData()
+        metadata.reflect(bind=engine)
+        articles_table = metadata.tables[ARTICLES_TABLE]
+        price_table = metadata.tables[PRICE_TABLE]
+
+        with engine.connect() as conn:
+            stmt1 = select(articles_table).where(articles_table.c.chatId == chat_id)
+            result1 = conn.execute(stmt1)
+            articles_list = [row[0] for row in result1.fetchall()]
+
+            if not articles_list:
+                return []
+
+            stmt2 = select(
+                price_table.c.article, price_table.c.price, price_table.c.dateUpdate
+            ).where(price_table.c.article.in_(articles_list))
+
+            result2 = conn.execute(stmt2)
+            price_list = [
+                {"article": row[0], "price": row[1], "date": row[2]}
+                for row in result2.fetchall()
+            ]
+
+        return price_list
+
+    except Exception as e:
+        print(f"Get from DB error: {e}")
+        return []
 
 
 def get_chat_ids() -> list:
