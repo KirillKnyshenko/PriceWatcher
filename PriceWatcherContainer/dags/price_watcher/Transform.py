@@ -1,5 +1,4 @@
 import pandas as pd
-import xmltodict
 from datetime import datetime, timedelta
 import os
 import tempfile
@@ -7,7 +6,6 @@ import tempfile
 
 def transform(prices_dict: dict) -> str:
     try:
-        print(prices_dict, type(prices_dict))
         df = pd.DataFrame(prices_dict)
 
         df["dateUpdate"] = datetime.now()

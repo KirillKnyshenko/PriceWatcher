@@ -1,7 +1,5 @@
 from airflow import DAG
 from airflow.decorators import task
-from airflow.operators.python import PythonOperator, BranchPythonOperator
-from airflow.operators.bash import BashOperator
 
 from datetime import datetime, timedelta
 import logging
@@ -15,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 with DAG(
     "price_sending",
-    start_date=datetime(2025, 6, 27),
-    schedule=timedelta(minutes=10),
+    start_date=datetime(2025, 8, 1),
+    schedule=timedelta(hours=2),
     description="My pet project which get prices data from WB and send to Telegram.",
     tags=["PetProject", "ETL"],
     catchup=False,
@@ -48,12 +46,8 @@ with DAG(
             raise
 
     @task
-    def transform_data(ti):
+    def transform_data(extract_result: dict) -> str:
         try:
-            extract_result = ti.xcom_pull(task_ids="extract_data")
-            if not extract_result:
-                raise ValueError("No data received from extract task")
-
             prices = extract_result["prices"]
             csv_path = transform(prices)
             logger.info("Transform succesfully!")
@@ -63,9 +57,8 @@ with DAG(
             raise
 
     @task
-    def load_data(ti):
+    def load_data(csv_path: str):
         try:
-            csv_path = ti.xcom_pull(task_ids="transform_data")
             load(csv_path)
             logger.info("Successfully loaded to DB!")
         except Exception as e:
@@ -73,14 +66,9 @@ with DAG(
             raise
 
     @task
-    def send_message(ti):
+    def send_message(extract_result: dict):
         try:
-            extract_result = ti.xcom_pull(task_ids="extract_data")
-            if not extract_result:
-                raise ValueError("No data received from extract task")
-
             chatIds = extract_result["chatIds"]
-
             for chatId in chatIds:
                 try:
                     show_changed_prices(chatId)
@@ -88,12 +76,12 @@ with DAG(
                 except Exception as e:
                     logger.error(f"Bot error: {e}")
         except Exception as e:
-            logger.error(f"Load error: {e}")
+            logger.error(f"Send message error: {e}")
             raise
 
     extract_ = extract_data()
-    transform_ = transform_data()
-    load_ = load_data()
-    send_ = send_message()
+    transform_ = transform_data(extract_)
+    load_ = load_data(transform_)
+    send_ = send_message(extract_)
 
     extract_ >> transform_ >> load_ >> send_

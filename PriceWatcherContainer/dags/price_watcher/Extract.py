@@ -10,6 +10,13 @@ import os
 from sqlalchemy import create_engine, select, func, MetaData
 
 
+def get_engine():
+    load_dotenv()
+    return create_engine(
+        f"postgresql+psycopg2://{os.environ['DB_USER']}:{os.environ['DB_PASSWORD']}@{os.environ['DB_HOST']}:{os.environ['DB_PORT']}/{os.environ['DB_NAME']}"
+    )
+
+
 def extract(articles: list) -> dict:
     with ThreadPoolExecutor(max_workers=3) as executor:
         results = list(executor.map(fetch_price, articles))
@@ -65,17 +72,7 @@ def fetch_price(article):
 
 def get_articles(chat_id: str) -> list:
     try:
-        load_dotenv()
-
-        user = os.environ["DB_USER"]
-        password = os.environ["DB_PASSWORD"]
-        host = os.environ["DB_HOST"]
-        port = os.environ["DB_PORT"]
-        db = os.environ["DB_NAME"]
-
-        engine = create_engine(
-            f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}"
-        )
+        engine = get_engine()
 
         ARTICLES_TABLE = "articles"
 
@@ -98,17 +95,7 @@ def get_articles(chat_id: str) -> list:
 
 def get_prices_db(chat_id: str) -> list:
     try:
-        load_dotenv()
-
-        user = os.environ["DB_USER"]
-        password = os.environ["DB_PASSWORD"]
-        host = os.environ["DB_HOST"]
-        port = os.environ["DB_PORT"]
-        db = os.environ["DB_NAME"]
-
-        engine = create_engine(
-            f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}"
-        )
+        engine = get_engine()
 
         ARTICLES_TABLE = "articles"
         PRICE_TABLE = "wb_price_history"
@@ -138,17 +125,7 @@ def get_prices_db(chat_id: str) -> list:
 
 def get_prices_db(chat_id: str, isMax: bool = True) -> list:
     try:
-        load_dotenv()
-
-        user = os.environ["DB_USER"]
-        password = os.environ["DB_PASSWORD"]
-        host = os.environ["DB_HOST"]
-        port = os.environ["DB_PORT"]
-        db = os.environ["DB_NAME"]
-
-        engine = create_engine(
-            f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}"
-        )
+        engine = get_engine()
 
         ARTICLES_TABLE = "articles"
         PRICE_TABLE = "wb_price_history"
@@ -203,17 +180,7 @@ def get_prices_db(chat_id: str, isMax: bool = True) -> list:
 
 def get_price_history_db(chat_id: str) -> list:
     try:
-        load_dotenv()
-
-        user = os.environ["DB_USER"]
-        password = os.environ["DB_PASSWORD"]
-        host = os.environ["DB_HOST"]
-        port = os.environ["DB_PORT"]
-        db = os.environ["DB_NAME"]
-
-        engine = create_engine(
-            f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}"
-        )
+        engine = get_engine()
 
         ARTICLES_TABLE = "articles"
         PRICE_TABLE = "wb_price_history"
@@ -250,17 +217,7 @@ def get_price_history_db(chat_id: str) -> list:
 
 def get_chat_ids() -> list:
     try:
-        load_dotenv()
-
-        user = os.environ["DB_USER"]
-        password = os.environ["DB_PASSWORD"]
-        host = os.environ["DB_HOST"]
-        port = os.environ["DB_PORT"]
-        db = os.environ["DB_NAME"]
-
-        engine = create_engine(
-            f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}"
-        )
+        engine = get_engine()
 
         ARTICLES_TABLE = "articles"
 
