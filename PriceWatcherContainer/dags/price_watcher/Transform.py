@@ -2,6 +2,9 @@ import pandas as pd
 from datetime import datetime, timedelta
 import os
 import tempfile
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def transform(prices_dict: dict) -> str:
@@ -16,5 +19,5 @@ def transform(prices_dict: dict) -> str:
 
         return temp_path
     except Exception as e:
-        print(f"Transform error: {e}")
+        logger.error(f"Transform error: {e}")
         raise
