@@ -1,9 +1,0 @@
-pandas
-dotenv
-python-telegram-bot>=20.0
-playwright
-matplotlib
-numpy
-sqlalchemy
-beautifulsoup4
-psycopg2-binary
