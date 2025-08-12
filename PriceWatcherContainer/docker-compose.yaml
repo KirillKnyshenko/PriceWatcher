@@ -5,13 +5,11 @@ x-airflow-common:
   build: .
   environment:
     &airflow-common-env
-    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__CORE__FERNET_KEY: ''
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
-    AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:1111@postgres/price_watcher
     _AIRFLOW_WWW_USER_CREATE: 'true'
     _AIRFLOW_WWW_USER_USERNAME: airflow
     _AIRFLOW_WWW_USER_PASSWORD: airflow
@@ -23,28 +21,19 @@ x-airflow-common:
   depends_on:
     postgres:
       condition: service_healthy
-    redis:
-      condition: service_healthy
   user: "${AIRFLOW_UID:-50000}:0"
 
 services:
   postgres:
     image: postgres:13
     environment:
-      POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
-      POSTGRES_DB: airflow
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1111
+      POSTGRES_DB: price_watcher
     volumes:
       - postgres-db-volume:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "airflow"]
-      interval: 5s
-      retries: 5
-
-  redis:
-    image: redis:6
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "pg_isready", "-U", "postgres"]
       interval: 5s
       retries: 5
 
@@ -62,11 +51,6 @@ services:
     <<: *airflow-common
     command: scheduler
 
-  airflow-worker:
-    <<: *airflow-common
-    command: celery worker
-    restart: always
-
   airflow-init:
     <<: *airflow-common
     entrypoint: /bin/bash
@@ -75,12 +59,25 @@ services:
       - |
         airflow db upgrade
         airflow users create \
-            --username airflow \
-            --password airflow \
-            --firstname Airflow \
-            --lastname Admin \
-            --role Admin \
-            --email airflow@airflow.com
+          --username airflow \
+          --password airflow \
+          --firstname Airflow \
+          --lastname Admin \
+          --role Admin \
+          --email airflow@airflow.com
+
+  pricewatcher-bot:
+    build:
+      context: ../TGBotContainer
+    environment:
+      DB_HOST: postgres
+      DB_USER: postgres
+      DB_PASSWORD: 1111
+      DB_NAME: price_watcher
+      DB_PORT: 5432
+    depends_on:
+      - postgres
+    command: python TGBot.py
 
 volumes:
   postgres-db-volume:
