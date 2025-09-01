@@ -68,7 +68,7 @@ services:
 
   pricewatcher-bot:
     build:
-      context: ../TGBotContainer
+      context: .
     environment:
       DB_HOST: postgres
       DB_USER: postgres
